@@ -1,0 +1,9 @@
+10;
+int i;
+i = 1;
+int n;
+read("n=", n);
+bool prime;
+int c;
+c = 10;
+print("C = ", c)
