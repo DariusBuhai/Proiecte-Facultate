@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+----------- Ex 1
 data Prog = On Instr
 data Instr = Off | Expr :> Instr
 data Expr = Mem | V Int | Expr :+ Expr
@@ -6,25 +8,27 @@ type DomProg = [Int]
 type DomInstr = Env -> [Int]
 type DomExpr = Env -> Int
 
+-- On ((V 3) :> ((Mem :+ (V 5)) :> Off)) -> [3, 8]
+
 prog :: Prog -> DomProg
 prog (On i) = stmt i 0
 
 stmt :: Instr -> DomInstr
 stmt i = stmt' i
-   where 
-      stmt' Off l = []
-      stmt' (e :> i) l = let eval = expr e l in
-                         [eval] ++ (stmt' i eval)
+   where stmt' Off l = []
+         stmt' (e :> i) l = let eval = expr e l in
+                            eval : stmt' i eval
 
 expr :: Expr -> DomExpr
-expr e = expr' e
-   where
-      expr' Mem l = l
-      expr' (V v) _ = v
-      expr' (e1 :+ e2) l = (expr' e1 l) + (expr' e2 l)
+expr = expr'
+   where expr' Mem l = l
+         expr' (V val) l = val
+         expr' (e1 :+ e2) l = expr' e1 l + expr' e2 l
 
-p1 = On ( (V 3) :> ((Mem :+ (V 5)):> Off))
 
+p1 = On ((V 3) :> ((Mem :+ (V 5)):> Off))
+
+----------------- Ex 2
 
 type Name = String
 data Hask = HTrue
@@ -41,65 +45,56 @@ infix 4 :==:
 infixl 6 :+:
 infixl 9 :$:
 
+
 data Value = VBool Bool
  | VInt Int
  | VFun (Value -> Value)
  | VError -- pentru reprezentarea erorilor
 type HEnv = [(Name, Value)]
-
 type DomHask = HEnv -> Value
 
--- 1
+--- a
 instance Show Value where
-   show (VBool x) = show x
-   show (VInt x) = show x
-   show (VFun _) = "function"
-   show VError = "error"
+    show (VBool i) = show i
+    show (VInt i) = show i
+    show (VFun _) = "<function>"
+    show VError = "<error>"
 
--- 2
+--- b 
 instance Eq Value where
-   (VBool x1) == (VBool x2) = x1 == x2
-   (VInt x1) == (VInt x2) = x1 == x2
-   _ == _ = False
+    (VInt a) == (VInt b) = a == b
+    (VBool a) == (VBool b) = a == b
+    _ == _ = error "Nu se pot compara"
 
--- 3
+--- c
 isError :: Value -> Bool
 isError VError = True
 isError _ = False
 
 hEval :: Hask -> DomHask
-
 hEval HTrue _ = VBool True
 hEval HFalse _ = VBool False
-hEval (HLit i) _ = VInt i
-hEval (HIf a b c) env =
-    case hEval a env of
-        VBool True -> hEval b env
-        VBool False -> hEval c env
-        _ -> VError
-hEval (a :==: b) env =
-    let x :: Value
-        x = hEval a env
-        y :: Value
-        y = hEval b env in
-    if isError x || isError y then
-        VError
-    else
-        VBool $ x == y
+hEval (HLit x) _ = VInt x
+hEval (HIf h1 h2 h3) env = checkIf' (hEval h1 env) h2 h3 env
+    where checkIf' (VBool True) h2 h3 env = hEval h2 env
+          checkIf' (VBool False) h2 h3 env = hEval h3 env
+          checkIf' _ _ _ _ = VError
 
-hEval (a :+: b) env =
-    let x :: Value
-        x = hEval a env
-        y :: Value
-        y = hEval b env in
-    case (x, y) of
-        (VInt a, VInt b) -> VInt (a + b)
-        _ -> VError
-hEval (HVar n) env =
-    let rez = lookup n env in
-    case rez of
-        Nothing -> VError
-        Just exp -> exp
+hEval (h1 :==: h2) env = let v1 = hEval h1 env in
+                         let v2 = hEval h2 env in
+                         if isError v1 || isError v2 then
+                             VError
+                         else
+                             VBool (v1 == v2)
+hEval (h1 :+: h2) env = let v1 = hEval h1 env in
+                        let v2 = hEval h2 env in
+                        case (v1, v2) of 
+                            (VInt v1, VInt v2) -> VInt (v1 + v2)
+                            (_, _) -> VError
+hEval (HVar n) env = let rez = lookup n env in
+                     case rez of
+                         Nothing -> VError
+                         Just exp -> exp
 hEval (HLam n exp) env =
     VFun (\x ->
         let new_entry = (n, x)
@@ -123,7 +118,5 @@ hEval (a :$: b) env =
 lambdaExp :: Hask
 lambdaExp = HLam "X" (HVar "X" :+: HVar "X") :$: HLit 10
 
-eval :: Value
-eval = hEval lambdaExp []
+main = undefined 
 
-main = undefined
