@@ -1,0 +1,18 @@
+int i;
+i = 1;
+int x;
+int n;
+read("n=", n);
+bool prime;
+prime = true;
+while (prime && i * i < n) {
+    i = i + 1;
+    if (n % i == 0) {
+        prime = false;
+        x = 20
+    }
+    else {
+        
+    }
+};
+if (prime) print("Is prime: ", n) else print("Is not prime: ", n)

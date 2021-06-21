@@ -3,7 +3,7 @@
 
 newtype Identity a = Identity { runIdentity :: a }
 
-
+type M = Identity
 --- Limbajul si  Interpretorul
 
 

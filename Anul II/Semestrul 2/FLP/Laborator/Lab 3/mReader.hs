@@ -35,20 +35,19 @@ local f ma = Reader $ (\r -> (runReader ma)(f r))
 data Person = Person { name :: String, age :: Int }
 
 showPersonN :: Person -> String
-showPersonN = undefined
+showPersonN p = "NAME:" ++ (name p)
 
 showPersonA :: Person -> String
-showPersonA = undefined
-
+showPersonA p = "AGE:" ++ show (age p)
 
 showPerson :: Person -> String
-showPerson = undefined
+showPerson p = "(" ++ showPersonN p ++ "," ++ showPersonA p ++ ")"
 
 mshowPersonN ::  Reader Person String
-mshowPersonN = undefined
+mshowPersonN = Reader showPersonN
 
 mshowPersonA ::  Reader Person String
-mshowPersonA = undefined
+mshowPersonA = Reader showPersonA
 
 mshowPerson :: Reader Person String
-mshowPerson = undefined
+mshowPerson = Reader showPerson

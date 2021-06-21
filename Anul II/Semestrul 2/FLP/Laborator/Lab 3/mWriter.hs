@@ -1,6 +1,7 @@
+
 --- Monada Writer
 
-newtype WriterS a = Writer { runWriter :: (a, String) } 
+newtype WriterS a = Writer { runWriter :: (a, String) }
 
 
 instance  Monad WriterS where
@@ -14,24 +15,31 @@ instance  Applicative WriterS where
   pure = return
   mf <*> ma = do
     f <- mf
-    a <- ma
-    return (f a)       
+    f <$> ma
 
-instance  Functor WriterS where              
-  fmap f ma = pure f <*> ma     
+instance  Functor WriterS where
+  fmap f ma = f <$> ma
 
 tell :: String -> WriterS ()
 tell log = Writer ((), log)
 
-logIncrement :: Int -> WriterS Int
+-- 1.1
+logIncrement :: Int  -> WriterS Int
 logIncrement x = do
-    tell ("Increment: " ++ show x ++ "\n")
-    return (x + 1)
+  tell ("increment: " ++ show x ++ "\n")
+  return (x + 1)
+
+logIncrement2 :: Int  -> WriterS Int
+logIncrement2 x = do
+  y <- logIncrement x
+  logIncrement y
+
+--
 logIncrementN :: Int -> Int -> WriterS Int
-logIncrementN x n = do
-    if n == 1 then logIncrement x
-    else do
-        tell ("Increment: " ++ show x ++ "\n")
-        logIncrementN (x + 1) (n - 1)
-                  
-main = undefined
+logIncrementN x 0 = return x
+logIncrementN x n =  do
+  y <- logIncrement x
+  logIncrementN y (n-1)
+
+
+
