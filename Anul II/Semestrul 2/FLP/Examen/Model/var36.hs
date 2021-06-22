@@ -11,9 +11,9 @@ data Prog  = On [Stmt]
 data Stmt =
      Save Expr     -- evalueaza expresia și salvează rezultatul in Mem
    | NoSave Expr   -- evalueaza expresia, fără a modifica Mem 
-data Expr =  Mem 
-   | V Int 
-   | Expr :+ Expr 
+data Expr =  Mem
+   | V Int
+   | Expr :+ Expr
    | If Expr Expr Expr
 
 infixl 6 :+
@@ -36,9 +36,9 @@ expr (If cond e1 e2) env =
     v2
 
 stmt :: Stmt -> Env -> Env
-stmt (Save e) env = let env1 = expr e env in 
+stmt (Save e) env = let env1 = expr e env in
                     env1
-stmt (NoSave e) env = let _ = expr e env in 
+stmt (NoSave e) env = let _ = expr e env in
                     env
 
 stmts :: [Stmt] -> Env -> Env
@@ -57,7 +57,7 @@ test2 = On [NoSave (V 3 :+ V 3)]
 test3 :: Prog
 test3 = On [Save (V 3), Save (V 4)]
 test4 :: Prog
-test4 = On [NoSave (V 3), NoSave (Mem :+ (V 5))]
+test4 = On [NoSave (V 3), NoSave (Mem :+ V 5)]
 
 -- Teste pentru cerinta 2
 test5 :: Prog
@@ -84,13 +84,13 @@ newtype StringWriter a = StringWriter {runStringWriter :: (a, [Int])}
 
 instance Show a => Show (StringWriter a) where
   show sw = let (a, b) = runStringWriter sw in
-    "Output: " ++ show b ++ " Value: " ++ show a
+    "Calculate: " ++ show b ++ " Value: " ++ show a
 
 instance Monad StringWriter where
   return x = StringWriter (x, [])
   sw >>= f = let (a, b) = runStringWriter sw in
              let (StringWriter (a1, b1)) = f a in
-               StringWriter (a1, b ++ b1)
+               StringWriter (a1, b1)
 
 instance Applicative StringWriter where
   pure = return
@@ -105,7 +105,7 @@ type EnvS = StringWriter Int
 
 exprS ::  Expr -> EnvS -> EnvS
 exprS Mem env = env
-exprS (V x) env = StringWriter (x, [x])
+exprS (V x) _ = return x
 
 exprS (e1 :+ e2) env = do
      v1 <- exprS e1 env
@@ -121,10 +121,14 @@ exprS (If cond e1 e2) env = do
        return v2
 
 stmtS :: Stmt -> EnvS -> EnvS
-stmtS (Save e) env = let env1 = exprS e env in 
-                    env1
-stmtS (NoSave e) env = let _ = exprS e env in 
-                    env
+stmtS (Save e) env = do
+     env2 <- exprS e env
+     let (env1, vals) = runStringWriter env in
+       StringWriter (env2, env2 : vals)
+stmtS (NoSave e) env = do
+     env2 <- exprS e env
+     let (env1, vals) = runStringWriter env in
+       StringWriter (env1, env2 : vals)
 
 stmtsS :: [Stmt] -> EnvS -> EnvS
 stmtsS si env = foldl (flip stmtS) env si
@@ -133,4 +137,3 @@ progS :: Prog -> EnvS
 progS (On ss) = stmtsS ss (return 0)
 
 
-  
