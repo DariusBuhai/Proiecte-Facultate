@@ -25,7 +25,7 @@ instance Functor EnvReader where
 --- Limbajul si  Interpretorul
 
 showM :: Show a => M a -> String
-showM = show
+showM e = show $ runEnvReader e []
 
 type Name = String
 
@@ -34,7 +34,6 @@ data Term = Var Name
           | Term :+: Term
           | Lam Name Term
           | App Term Term
-          | Amb Term Term
   deriving (Show)
 
 pgm :: Term
@@ -71,6 +70,9 @@ type Environment = [(Name, Value)]
 ask :: EnvReader Environment
 ask = Reader id
 
+local :: (Environment -> Environment) -> EnvReader a -> EnvReader a
+local f (Reader transf) = Reader (transf . f)
+
 interp :: Term -> M Value
 interp (Var n) = do
   env <- ask
@@ -80,32 +82,29 @@ interp (Var n) = do
 interp (Con x) = return (Num x)
 interp (t1 :+: t2) = do
      env <- ask
-     v1 <- interp t1 env
-     v2 <- interp t2 env
+     v1 <- interp t1
+     v2 <- interp t2
      case (v1, v2) of
        (Num x, Num y) -> return (Num (x + y))
-       (_, _) -> []
-interp (Lam n t) = return $ Fun (\x -> interp t ((n, x) : env))
+       (_, _) -> return Wrong
+interp (Lam n t) = do
+     env <- ask
+     return $ Fun $ \x -> local (const $ (n, x): env) $ interp t
 interp (App t1 t2) = do
-     intf <- interp t1 env
-     intv <- interp t2 env
+     env <- ask
+     intf <- interp t1
+     intv <- interp t2
      case intf of
        Fun f -> f intv
-       _ -> []
-interp (Amb a b) = do
-  v1 <- interp a env
-  v2 <- interp b env
-  v1 : [v2]
+       _ -> return Wrong
 
 
 test :: Term -> String
-test t = showM $ interp t []
+test t = showM $ interp t
 
 pgm1:: Term
 pgm1 = App
           (Lam "x" (Var "x" :+: Var "x"))
           (Con 10 :+:  Con 11)
-pgm2 :: Term
-pgm2 = App (Lam "x" (Var "x" :+: Var "x")) (Amb (Con 1) (Con 2))
 -- test pgm
 -- test pgm1
