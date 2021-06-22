@@ -11,26 +11,38 @@ data Prog  = On [Stmt]
 data Stmt =
      Save Expr     -- evalueaza expresia și salvează rezultatul in Mem
    | NoSave Expr   -- evalueaza expresia, fără a modifica Mem 
-data Expr =  Mem | V Int | Expr :+ Expr | If Expr Expr Expr
+data Expr =  Mem 
+   | V Int 
+   | Expr :+ Expr 
+   | If Expr Expr Expr
 
 infixl 6 :+
 
 type Env = Int   -- valoarea curentă a celulei de memorie
 
 expr ::  Expr -> Env -> Int
-expr Mem m = m
-expr (V val) _ = val
-expr (exp1 :+ exp2) m = expr exp1 m + expr exp2 m
-expr (If e e1 e2) env
-    | expr e env == 0 = expr e1 env
-    | otherwise = expr e2 env
+expr Mem env = env
+expr (V x) _ = x
+expr (e1 :+ e2) env = let v1 = expr e1 env in
+                      let v2 = expr e2 env in
+                        v1 + v2
+expr (If cond e1 e2) env =
+  let v1 = expr cond env in
+  let v2 = expr e1 env in
+  let v3 = expr e2 env in
+  if v1 == 0 then
+    v3
+  else
+    v2
 
 stmt :: Stmt -> Env -> Env
-stmt (NoSave _) env = env
-stmt (Save e) env = expr e env
+stmt (Save e) env = let env1 = expr e env in 
+                    env1
+stmt (NoSave e) env = let _ = expr e env in 
+                    env
 
 stmts :: [Stmt] -> Env -> Env
-stmts ss env = foldr stmt env ss
+stmts si env = foldl (flip stmt) env si
 
 prog :: Prog -> Env
 prog (On ss) = stmts ss 0
@@ -68,82 +80,57 @@ Indicati testele pe care le-ati folosit in verificarea solutiilor.
 -}
 
 -- Ex 3
-newtype IntListState a = IntListState { runIntListState :: Int -> (a, Int) }
+newtype StringWriter a = StringWriter {runStringWriter :: (a, [Int])}
 
-instance Show a => Show (IntListState a) where
-  show ma = "Memorie: " ++ show a ++ " Calculate: " ++ show state
-    where (a, state) = runIntListState ma 0
+instance Show a => Show (StringWriter a) where
+  show sw = let (a, b) = runStringWriter sw in
+    "Output: " ++ show b ++ " Value: " ++ show a
 
-instance Monad IntListState where
-  return x = IntListState (\s -> (x, s))
-  ma >>= k = IntListState (\state -> let (a, state1) = runIntListState ma state
-                                 in runIntListState (k a) state1)
+instance Monad StringWriter where
+  return x = StringWriter (x, [])
+  sw >>= f = let (a, b) = runStringWriter sw in
+             let (StringWriter (a1, b1)) = f a in
+               StringWriter (a1, b ++ b1)
 
-instance Applicative IntListState where
+instance Applicative StringWriter where
   pure = return
-  mf <*> ma = do
-    f <- mf
-    f <$> ma
+  a <*> b = do
+    f <- a
+    f <$> b
 
-instance Functor IntListState where
-  fmap f ma = f <$> ma
+instance Functor StringWriter where
+  fmap f a = f <$> a
 
--- schimbare starea
-modify :: (Int -> Int) -> IntListState ()
-modify fun = IntListState (\s -> ((), fun s))
+type EnvS = StringWriter Int
 
--- crestere stare contor
-tickS :: Int -> IntListState ()
-tickS op = modify (max op)
+exprS ::  Expr -> EnvS -> EnvS
+exprS Mem env = env
+exprS (V x) env = StringWriter (x, [x])
 
--- obtinere stare curenta
-get :: IntListState Int
-get = IntListState (\s -> (s, s))
+exprS (e1 :+ e2) env = do
+     v1 <- exprS e1 env
+     v2 <- exprS e2 env
+     return $ v1 + v2
+exprS (If cond e1 e2) env = do
+     v1 <- exprS cond env
+     v2 <- exprS e1 env
+     v3 <- exprS e2 env
+     if v1 == 0 then
+       return v3
+     else
+       return v2
 
---- Limbajul si Interpretorul
-type M a = IntListState a
+stmtS :: Stmt -> EnvS -> EnvS
+stmtS (Save e) env = let env1 = exprS e env in 
+                    env1
+stmtS (NoSave e) env = let _ = exprS e env in 
+                    env
 
-showM :: Show a => M a -> String
-showM = show
+stmtsS :: [Stmt] -> EnvS -> EnvS
+stmtsS si env = foldl (flip stmtS) env si
 
-add :: Int -> Int -> M Int
-add x y = tickS (x + y) >> return (x + y)
+progS :: Prog -> EnvS
+progS (On ss) = stmtsS ss (return 0)
 
-runIf :: Int -> Int -> Int -> Int
-runIf cond e1 e2
-    | cond == 0 = e1
-    | otherwise = e2
 
-expr2 ::  Expr -> Env -> M Int
-expr2 Mem m = return m
-expr2 (V val) _ = return val
-expr2 (exp1 :+ exp2) m = do
-    e1 <- expr2 exp1 m
-    e2 <- expr2 exp2 m
-    add e1 e2
-expr2 (If e me1 me2) env = do
-    cond <- expr2 e env
-    e1 <- expr2 me1 env
-    e2 <- expr2 me2 env
-    return (runIf cond e1 e2)
-
-stmt2 :: Stmt -> Env -> M Env
-stmt2 (NoSave _) env = return env
-stmt2 (Save me) env = do
-    e <- expr2 me env
-    return e
-
-stmts2 :: [Stmt] -> Env -> M Env
-stmts2 (ms:ss) env = do
-    s <- stmt2 ms env
-    stmts2 ss s
-stmts2 [] env = return env
-
-prog2 :: Prog -> M Env
-prog2 (On ss) = stmts2 ss 0
-
--- Teste pentru cerinta 3
-test7 :: Prog
-test7 = On [Save (V 3), Save (Mem :+ (V 5))]
-test8 :: Prog
-test8 = On [Save (V 3 :+ V 3), Save (V 5 :+ V 9)]
+  
